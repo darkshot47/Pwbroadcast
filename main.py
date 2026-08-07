@@ -47,7 +47,7 @@ def start(message):
         save_users(users)
     
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🎓 Browse Batches", url="https://pw-website.com"))
+    markup.add(types.InlineKeyboardButton("🎓 Browse Batches", url="t.me/SKY_XYR"))
     markup.add(types.InlineKeyboardButton("👥 Refer & Earn", callback_data="refer"))
     
     bot.send_message(
