@@ -217,5 +217,25 @@ def blocked_users_list(message):
 # Start polling
 if __name__ == "__main__":
     print("Bot is running...")
+    import threading
+from flask import Flask
+
+# Dummy web server to satisfy Render's port requirement
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_flask():
+    port = int(os.getenv("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+if __name__ == "__main__":
+    # Start Flask server in a separate thread
+    threading.Thread(target=run_flask, daemon=True).start()
+    
+    print("Bot is running...")
     bot.infinity_polling()
+    
   
