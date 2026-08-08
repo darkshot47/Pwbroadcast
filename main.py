@@ -1,9 +1,11 @@
 import os
 import json
 import time
+import threading
 from datetime import datetime
 import telebot
 from telebot import types
+from flask import Flask
 
 # Configurations - Fetching from Environment Variables for Security
 API_TOKEN = os.getenv('BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE')
@@ -30,6 +32,17 @@ def is_admin(user_id):
 # Track broadcast state
 broadcast_state = {}
 
+# Dummy web server for Render port binding
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_flask():
+    port = int(os.getenv("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
 # ==================== START COMMAND ====================
 
 @bot.message_handler(commands=['start'])
@@ -47,7 +60,7 @@ def start(message):
         save_users(users)
     
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🎓 Browse Batches", url="t.me/SKY_XYR"))
+    markup.add(types.InlineKeyboardButton("🎓 Browse Batches", url="https://t.me/SKY_XYR"))
     markup.add(types.InlineKeyboardButton("👥 Refer & Earn", callback_data="refer"))
     
     bot.send_message(
@@ -60,6 +73,20 @@ def start(message):
         reply_markup=markup,
         parse_mode='Markdown'
     )
+
+# ==================== GET DATABASE BACKUP COMMAND ====================
+
+@bot.message_handler(commands=['get_db'])
+def send_db_file(message):
+    if not is_admin(message.from_user.id):
+        bot.send_message(message.chat.id, "❌ Admin only!")
+        return
+    
+    try:
+        with open(USERS_DB, "rb") as doc:
+            bot.send_document(message.chat.id, doc, caption="📁 Active Users Database Backup")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Error fetching DB: {e}")
 
 # ==================== STATS COMMAND ====================
 
@@ -116,7 +143,6 @@ def broadcast_init(message):
         parse_mode='Markdown'
     )
 
-# Handle content during broadcast
 @bot.message_handler(
     func=lambda msg: msg.chat.id in broadcast_state, 
     content_types=['text', 'photo', 'video', 'document', 'audio']
@@ -170,7 +196,7 @@ def handle_broadcast_content(message):
     bot.edit_message_text(result_text, chat_id, status_msg.message_id, parse_mode='Markdown')
     broadcast_state.pop(chat_id, None)
 
-# ==================== USER LISTS ====================
+# ==================== COMPLETE USER LISTS ====================
 
 @bot.message_handler(commands=['user_list'])
 def user_list(message):
@@ -179,16 +205,26 @@ def user_list(message):
         return
     
     users = load_users()
+    if not users:
+        bot.send_message(message.chat.id, "❌ No users found!")
+        return
+    
     text = f"👥 **Total Users: {len(users)}**\n\n"
     
-    for idx, (user_id, user_data) in enumerate(list(users.items())[:10], 1):
+    for idx, (user_id, user_data) in enumerate(users.items(), 1):
         name = user_data.get("name", "Unknown")
-        text += f"{idx}. {name} (`{user_id}`)\n"
+        username = f" (@{user_data.get('username')})" if user_data.get("username") else ""
+        entry = f"{idx}. {name}{username} - `{user_id}`\n"
+        
+        # Telegram character limit handling (4096 chars per message)
+        if len(text) + len(entry) > 4000:
+            bot.send_message(message.chat.id, text, parse_mode='Markdown')
+            text = ""
+            
+        text += entry
     
-    if len(users) > 10:
-        text += f"\n... and {len(users) - 10} more"
-    
-    bot.send_message(message.chat.id, text, parse_mode='Markdown')
+    if text:
+        bot.send_message(message.chat.id, text, parse_mode='Markdown')
 
 @bot.message_handler(commands=['blocked_users'])
 def blocked_users_list(message):
@@ -205,37 +241,25 @@ def blocked_users_list(message):
     
     text = f"🚫 **Blocked Users: {len(blocked)}**\n\n"
     
-    for idx, (user_id, user_data) in enumerate(list(blocked.items())[:10], 1):
+    for idx, (user_id, user_data) in enumerate(blocked.items(), 1):
         name = user_data.get("name", "Unknown")
-        text += f"{idx}. {name} (`{user_id}`)\n"
-    
-    if len(blocked) > 10:
-        text += f"\n... and {len(blocked) - 10} more"
-    
-    bot.send_message(message.chat.id, text, parse_mode='Markdown')
+        entry = f"{idx}. {name} (`{user_id}`)\n"
+        
+        if len(text) + len(entry) > 4000:
+            bot.send_message(message.chat.id, text, parse_mode='Markdown')
+            text = ""
+            
+        text += entry
+        
+    if text:
+        bot.send_message(message.chat.id, text, parse_mode='Markdown')
 
-# Start polling
-if __name__ == "__main__":
-    print("Bot is running...")
-    import threading
-from flask import Flask
-
-# Dummy web server to satisfy Render's port requirement
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is alive!"
-
-def run_flask():
-    port = int(os.getenv("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+# ==================== MAIN EXECUTION ====================
 
 if __name__ == "__main__":
-    # Start Flask server in a separate thread
+    # Start Flask server in background thread for Render port binding
     threading.Thread(target=run_flask, daemon=True).start()
     
     print("Bot is running...")
     bot.infinity_polling()
-    
-  
+                              
