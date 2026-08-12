@@ -57,7 +57,7 @@ def start(message):
         users_col.update_one({"_id": user_id}, {"$setOnInsert": user_data}, upsert=True)
     
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🎓 Browse Batches", url="https://t.me/SKY_XYR"))
+    markup.add(types.InlineKeyboardButton("🎓 Browse Batches", url="t.me/FreestudytoolsAtoZ_bot/app"))
     markup.add(types.InlineKeyboardButton("👥 Refer & Earn", callback_data="refer"))
     
     bot.send_message(
